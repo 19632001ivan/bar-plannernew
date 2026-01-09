@@ -314,3 +314,317 @@ textarea{ resize:vertical; }
 .modal-content label{
   color: rgba(255,255,255,.85);
 }
+/* ================================
+   RESPONSIVE (PC / Tablet / Mobile)
+   Pegar al FINAL del styles.css
+=================================== */
+
+:root{
+  --gap: 16px;
+}
+
+/* Evita desbordes en móviles */
+*{ box-sizing: border-box; }
+html, body{ max-width: 100%; overflow-x: hidden; }
+
+/* Contenedor principal */
+.app{
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar (desktop) */
+.sidebar{
+  width: 280px;
+  min-width: 280px;
+}
+
+/* Main */
+.main{
+  flex: 1;
+  min-width: 0; /* clave para que tablas no rompan layout */
+}
+
+/* Tablas: nunca rompen la pantalla */
+.table-wrap{
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table{
+  width: 100%;
+  min-width: 720px; /* si hay muchas columnas, habilita scroll horizontal */
+}
+
+/* Grid del dashboard */
+.grid{
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Split (planner/feedback) */
+.split{
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: 1fr 1fr;
+}
+
+/* Formularios */
+.form .form-row{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Topbar */
+.topbar{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gap);
+}
+.topbar-actions{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Botones inline (filtros, selects, etc) */
+.inline{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ================================
+   MODAL RESPONSIVE + SCROLL
+=================================== */
+.modal{
+  align-items: flex-start !important;
+  overflow-y: auto !important;
+  padding: 24px 12px !important;
+}
+.modal-content{
+  width: min(720px, 100%);
+  max-height: calc(100vh - 48px) !important;
+  overflow: hidden !important;
+}
+.modal-content .form{
+  max-height: calc(100vh - 170px) !important;
+  overflow-y: auto !important;
+  padding-right: 6px;
+}
+.modal-content .actions{
+  position: sticky;
+  bottom: 0;
+  padding: 10px 0;
+  background: rgba(18, 22, 30, .96);
+  border-top: 1px solid rgba(255,255,255,.10);
+}
+
+/* ================================
+   TABLET (<= 980px)
+=================================== */
+@media (max-width: 980px){
+  .sidebar{
+    width: 240px;
+    min-width: 240px;
+  }
+
+  .grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .split{
+    grid-template-columns: 1fr; /* planner/feedback en una columna */
+  }
+
+  .table{
+    min-width: 760px;
+  }
+}
+
+/* ================================
+   MOBILE (<= 720px)
+   Sidebar -> Topbar / Nav horizontal
+=================================== */
+@media (max-width: 720px){
+  .app{
+    flex-direction: column;
+  }
+
+  .sidebar{
+    width: 100%;
+    min-width: 100%;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    padding-bottom: 10px;
+  }
+
+  /* Marca + logo más compacto */
+  .brand{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo img{
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+  }
+
+  /* Menú se vuelve scroll horizontal */
+  .nav{
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 4px;
+  }
+  .nav .nav-btn{
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .sidebar-footer{
+    display: none; /* en móvil ocupa mucho */
+  }
+
+  .main{
+    width: 100%;
+  }
+
+  .topbar{
+    flex-direction: column;
+  }
+
+  .grid{
+    grid-template-columns: 1fr; /* tarjetas en 1 columna */
+  }
+
+  /* Tablas: más scroll en móvil */
+  .table{
+    min-width: 820px;
+  }
+
+  /* Inputs/botones al 100% cuando se pueda */
+  input, select, textarea{
+    width: 100%;
+  }
+
+  .inline{
+    width: 100%;
+  }
+
+  .topbar-actions{
+    width: 100%;
+  }
+
+  .topbar-actions .primary{
+    width: 100%;
+  }
+
+  /* Modal más ancho (full) */
+  .modal-content{
+    width: 100%;
+  }
+}
+/* ===== LOGIN ===== */
+.login-screen{
+  min-height: 100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 24px;
+}
+.login-card{
+  width: min(420px, 100%);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  padding: 18px;
+  background: rgba(18, 22, 30, .96);
+  box-shadow: 0 30px 80px rgba(0,0,0,.55);
+}
+.login-brand{
+  display:flex;
+  gap: 12px;
+  align-items:center;
+  margin-bottom: 14px;
+}
+.login-logo{
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+.login-title{
+  font-weight: 800;
+  font-size: 18px;
+}
+.login-form .form-row{ margin-bottom: 12px; }
+.full{ width: 100%; }
+
+/* ===== GRID 4 (Movimientos) ===== */
+.grid-4{
+  grid-template-columns: repeat(4, minmax(0,1fr));
+}
+@media (max-width: 980px){
+  .grid-4{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 720px){
+  .grid-4{ grid-template-columns: 1fr; }
+}
+
+/* ===== CALENDARIO ===== */
+.calendar-grid{
+  display: grid;
+  gap: 8px;
+}
+.cal-row{
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0,1fr));
+  gap: 8px;
+}
+.cal-cell{
+  position: relative;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 14px;
+  min-height: 58px;
+  padding: 10px;
+  background: rgba(255,255,255,.04);
+  cursor: pointer;
+}
+.cal-cell:hover{
+  background: rgba(255,255,255,.06);
+}
+.cal-empty{
+  opacity: .35;
+  cursor: default;
+}
+.cal-week{
+  text-align: center;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  min-height: auto;
+  cursor: default;
+}
+.cal-num{
+  font-weight: 800;
+}
+.cal-dot{
+  position:absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(100, 180, 255, .95);
+}
+.cal-selected{
+  outline: 2px solid rgba(100, 180, 255, .8);
+}
+
+/* ===== UTILS ===== */
+.hidden{ display:none !important; }

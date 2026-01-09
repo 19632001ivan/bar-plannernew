@@ -1,4 +1,3 @@
-// ✅ Debug: confirma que el archivo está cargando
 console.log("✅ app.js cargado");
 
 // ---------- Helpers ----------
@@ -34,6 +33,50 @@ function downloadText(filename, content, mime="text/plain"){
   URL.revokeObjectURL(url);
 }
 
+function isoToday(){
+  return new Date().toISOString().slice(0,10);
+}
+
+function monthKey(dateStr){
+  // dateStr YYYY-MM-DD
+  return (dateStr || "").slice(0,7); // YYYY-MM
+}
+
+function monthLabelFromKey(key){
+  const [y,m] = key.split("-").map(Number);
+  const d = new Date(y, m-1, 1);
+  return d.toLocaleDateString("es-ES", { month:"long", year:"numeric" });
+}
+
+function rangeLabel(count){
+  if (count <= 1) return "Bajo";
+  if (count <= 4) return "Medio";
+  return "Alto";
+}
+
+// ---------- Auth ----------
+const AUTH_KEY = "bp_auth";
+const ADMIN_USER = "admin";
+const ADMIN_PASS = "12345";
+
+function isAuthed(){
+  return sessionStorage.getItem(AUTH_KEY) === "1";
+}
+
+function setAuthed(v){
+  sessionStorage.setItem(AUTH_KEY, v ? "1" : "0");
+}
+
+function showLogin(){
+  $("#loginScreen")?.classList.remove("hidden");
+  $("#appShell")?.classList.add("hidden");
+}
+
+function showApp(){
+  $("#loginScreen")?.classList.add("hidden");
+  $("#appShell")?.classList.remove("hidden");
+}
+
 // ---------- State ----------
 const State = {
   get cocktails(){ return Storage.get("bp_cocktails", []); },
@@ -53,21 +96,20 @@ const State = {
 };
 
 // ---------- Navigation ----------
-const views = ["dashboard","cocktails","events","planner","feedback","personales"];
+const views = ["dashboard","cocktails","events","planner","feedback","calendar","movements","personales"];
 const viewMeta = {
   dashboard: { title:"Panel Principal", desc:"Resumen rápido de tu barra." },
   cocktails: { title:"Tragos", desc:"Crea recetas clásicas y de autor." },
   events: { title:"Eventos", desc:"Crea eventos y arma el menú con porcentajes." },
   planner: { title:"Plan del evento", desc:"Genera insumos, botellas y herramientas." },
   feedback: { title:"Opiniones", desc:"Respuestas y feedback del cliente por evento." },
+  calendar: { title:"Calendario", desc:"Fechas con eventos y acceso rápido." },
+  movements: { title:"Movimientos", desc:"Estadísticas: sube/baja, rangos y mes con más eventos." },
   personales: { title:"Personales", desc:"Gestión de personal (próximamente)." },
 };
 
 function showView(name){
-  if (!viewMeta[name]) {
-    console.warn("⚠️ Vista desconocida:", name);
-    return;
-  }
+  if (!viewMeta[name]) return;
 
   for (const v of views){
     const el = $(`#view-${v}`);
@@ -76,29 +118,25 @@ function showView(name){
 
   $$(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.view === name));
 
-  const titleEl = $("#viewTitle");
-  const descEl = $("#viewDesc");
-  if (titleEl) titleEl.textContent = viewMeta[name].title;
-  if (descEl) descEl.textContent = viewMeta[name].desc;
+  $("#viewTitle").textContent = viewMeta[name].title;
+  $("#viewDesc").textContent = viewMeta[name].desc;
 
   if (name === "dashboard") renderDashboard();
   if (name === "cocktails") renderCocktails();
   if (name === "events") renderEvents();
   if (name === "planner") renderPlannerSelect();
   if (name === "feedback") renderFeedback();
-  // personales: por ahora es estático (solo HTML)
+  if (name === "calendar") renderCalendar();
+  if (name === "movements") renderMovements();
 }
 
 // ---------- Dashboard ----------
 function renderDashboard(){
-  const a = $("#statCocktails");
-  const b = $("#statEvents");
-  const c = $("#statLastPlan");
-  if (a) a.textContent = fmtInt(State.cocktails.length);
-  if (b) b.textContent = fmtInt(State.events.length);
+  $("#statCocktails").textContent = fmtInt(State.cocktails.length);
+  $("#statEvents").textContent = fmtInt(State.events.length);
 
   const sel = State.events.find(e => e.id === State.selectedEventId);
-  if (c) c.textContent = sel ? sel.name : "—";
+  $("#statLastPlan").textContent = sel ? sel.name : "—";
 }
 
 // ---------- Cocktails ----------
@@ -135,29 +173,19 @@ function openCocktailModal(id=null){
   const isEdit = Boolean(id);
   const c = isEdit ? State.cocktails.find(x => x.id === id) : null;
 
-  const modal = $("#cocktailModal");
-  if (!modal) return;
-
   $("#cocktailModalTitle").textContent = isEdit ? "Editar trago" : "Nuevo trago";
   const delBtn = $("#btnDeleteCocktail");
-  if (delBtn){
-    delBtn.classList.toggle("danger", isEdit);
-    delBtn.style.visibility = isEdit ? "visible" : "hidden";
-  }
+  delBtn.style.visibility = isEdit ? "visible" : "hidden";
 
   $("#cocktailName").value = c?.name ?? "";
   $("#cocktailMethod").value = c?.method ?? "build";
+  $("#cocktailRecipe").value = (c?.recipe ?? []).map(r => `${r.ingredient},${r.ml}`).join("\n");
 
-  const recipeText = (c?.recipe ?? []).map(r => `${r.ingredient},${r.ml}`).join("\n");
-  $("#cocktailRecipe").value = recipeText;
-
-  modal.classList.remove("hidden");
+  $("#cocktailModal").classList.remove("hidden");
 }
 
 function closeCocktailModal(){
-  const modal = $("#cocktailModal");
-  if (!modal) return;
-  modal.classList.add("hidden");
+  $("#cocktailModal").classList.add("hidden");
   editingCocktailId = null;
 }
 
@@ -225,13 +253,23 @@ on("#btnDeleteCocktail", "click", () => {
 // ---------- Events ----------
 let editingEventId = null;
 
+function normalizeEvent(ev){
+  return {
+    status: ev.status ?? "active",
+    clientName: ev.clientName ?? "",
+    eventType: ev.eventType ?? "Otro",
+    createdAt: ev.createdAt ?? new Date().toISOString(),
+    ...ev,
+  };
+}
+
 function renderEvents(){
   const tbody = $("#eventsTable tbody");
   if (!tbody) return;
   tbody.innerHTML = "";
 
   const filter = $("#eventsFilter")?.value ?? "all";
-  let list = State.events.slice();
+  let list = State.events.map(normalizeEvent);
 
   if (filter === "active"){
     list = list.filter(ev => (ev.status ?? "active") !== "completed");
@@ -240,13 +278,15 @@ function renderEvents(){
   }
 
   for (const ev of list){
-    const status = (ev.status ?? "active");
+    const status = ev.status ?? "active";
     const statusLabel = status === "completed" ? "Terminado" : "Activo";
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><b>${ev.name}</b></td>
       <td class="muted">${ev.date}</td>
+      <td>${ev.clientName ? `<b>${ev.clientName}</b>` : `<span class="muted">—</span>`}</td>
+      <td><span class="badge">${ev.eventType || "Otro"}</span></td>
       <td><span class="badge">${ev.mode}</span></td>
       <td><span class="badge">${statusLabel}</span></td>
       <td class="right">${fmtInt(ev.totalDrinks)}</td>
@@ -254,9 +294,7 @@ function renderEvents(){
         <div class="actions-cell">
           <button class="ghost" data-select="${ev.id}">Seleccionar</button>
           <button class="ghost" data-edit="${ev.id}">Editar</button>
-          <button class="ghost" data-toggle="${ev.id}">
-            ${status === "completed" ? "Reabrir" : "Terminar"}
-          </button>
+          <button class="ghost" data-toggle="${ev.id}">${status === "completed" ? "Reabrir" : "Terminar"}</button>
           <button class="ghost danger" data-del="${ev.id}">Eliminar</button>
         </div>
       </td>
@@ -264,12 +302,10 @@ function renderEvents(){
     tbody.appendChild(tr);
   }
 
-  // Editar
   tbody.querySelectorAll("[data-edit]").forEach(btn => {
     btn.addEventListener("click", () => openEventModal(btn.dataset.edit));
   });
 
-  // Seleccionar
   tbody.querySelectorAll("[data-select]").forEach(btn => {
     btn.addEventListener("click", () => {
       State.selectedEventId = btn.dataset.select;
@@ -277,10 +313,11 @@ function renderEvents(){
       renderDashboard();
       renderPlannerSelect();
       renderFeedback();
+      renderCalendar();
+      renderMovements();
     });
   });
 
-  // Terminar / Reabrir
   tbody.querySelectorAll("[data-toggle]").forEach(btn => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.toggle;
@@ -296,10 +333,11 @@ function renderEvents(){
       renderDashboard();
       renderPlannerSelect();
       renderFeedback();
+      renderCalendar();
+      renderMovements();
     });
   });
 
-  // Eliminar
   tbody.querySelectorAll("[data-del]").forEach(btn => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.del;
@@ -311,10 +349,8 @@ function renderEvents(){
       const events = State.events.filter(e => e.id !== id);
       State.events = events;
 
-      // borra opiniones relacionadas
       State.feedbacks = State.feedbacks.filter(fb => fb.eventId !== id);
 
-      // ajusta seleccionado
       if (State.selectedEventId === id){
         State.selectedEventId = events[0]?.id ?? null;
       }
@@ -323,6 +359,8 @@ function renderEvents(){
       renderDashboard();
       renderPlannerSelect();
       renderFeedback();
+      renderCalendar();
+      renderMovements();
     });
   });
 }
@@ -364,40 +402,32 @@ function makeMenuRow(menuItem){
 function openEventModal(id=null){
   editingEventId = id;
   const isEdit = Boolean(id);
-  const ev = isEdit ? State.events.find(x => x.id === id) : null;
-
-  const modal = $("#eventModal");
-  if (!modal) return;
+  const ev = isEdit ? normalizeEvent(State.events.find(x => x.id === id) || {}) : null;
 
   $("#eventModalTitle").textContent = isEdit ? "Editar evento" : "Nuevo evento";
-  const delBtn = $("#btnDeleteEvent");
-  if (delBtn){
-    delBtn.classList.toggle("danger", isEdit);
-    delBtn.style.visibility = isEdit ? "visible" : "hidden";
-  }
+  $("#btnDeleteEvent").style.visibility = isEdit ? "visible" : "hidden";
 
   $("#eventName").value = ev?.name ?? "";
-  $("#eventDate").value = ev?.date ?? new Date().toISOString().slice(0,10);
+  $("#eventClient").value = ev?.clientName ?? "";
+  $("#eventType").value = ev?.eventType ?? "Otro";
+  $("#eventDate").value = ev?.date ?? isoToday();
   $("#eventMode").value = ev?.mode ?? "by_drinks";
   $("#eventTotalDrinks").value = ev?.totalDrinks ?? 100;
   $("#eventWaste").value = ev?.wastePercent ?? 10;
 
   const menuWrap = $("#eventMenuRows");
-  if (menuWrap){
-    menuWrap.innerHTML = "";
-    const menu = ev?.menu?.length ? ev.menu : [{ cocktailId: State.cocktails[0]?.id, percent: 100 }];
-    for (const m of menu){
-      menuWrap.appendChild(makeMenuRow(m));
-    }
+  menuWrap.innerHTML = "";
+
+  const menu = (ev?.menu?.length ? ev.menu : [{ cocktailId: State.cocktails[0]?.id, percent: 100 }]);
+  for (const m of menu){
+    menuWrap.appendChild(makeMenuRow(m));
   }
 
-  modal.classList.remove("hidden");
+  $("#eventModal").classList.remove("hidden");
 }
 
 function closeEventModal(){
-  const modal = $("#eventModal");
-  if (!modal) return;
-  modal.classList.add("hidden");
+  $("#eventModal").classList.add("hidden");
   editingEventId = null;
 }
 
@@ -416,6 +446,8 @@ on("#eventForm", "submit", (e) => {
   e.preventDefault();
 
   const name = $("#eventName").value.trim();
+  const clientName = $("#eventClient").value.trim();
+  const eventType = $("#eventType").value;
   const date = $("#eventDate").value;
   const mode = $("#eventMode").value;
   const totalDrinks = Number($("#eventTotalDrinks").value);
@@ -441,14 +473,25 @@ on("#eventForm", "submit", (e) => {
     const idx = events.findIndex(x => x.id === editingEventId);
     if (idx >= 0) {
       events[idx] = {
-        ...events[idx],
-        name, date, mode, totalDrinks, wastePercent, menu,
-        status: events[idx].status ?? "active"
+        ...normalizeEvent(events[idx]),
+        name, clientName, eventType, date, mode, totalDrinks, wastePercent, menu,
       };
     }
   } else {
     const id = crypto.randomUUID();
-    events.unshift({ id, name, date, mode, totalDrinks, wastePercent, menu, status: "active" });
+    events.unshift({
+      id,
+      name,
+      clientName,
+      eventType,
+      date,
+      mode,
+      totalDrinks,
+      wastePercent,
+      menu,
+      status: "active",
+      createdAt: new Date().toISOString()
+    });
     State.selectedEventId = id;
   }
 
@@ -458,10 +501,11 @@ on("#eventForm", "submit", (e) => {
   renderDashboard();
   renderPlannerSelect();
   renderFeedback();
+  renderCalendar();
+  renderMovements();
 });
 
 on("#btnDeleteEvent", "click", () => {
-  // Eliminar desde el modal (se mantiene también)
   if (!editingEventId) return;
   if (!confirm("¿Eliminar este evento?")) return;
 
@@ -481,14 +525,16 @@ on("#btnDeleteEvent", "click", () => {
   renderDashboard();
   renderPlannerSelect();
   renderFeedback();
+  renderCalendar();
+  renderMovements();
 });
 
 on("#eventsFilter", "change", () => renderEvents());
 
 // ---------- Planner ----------
 function calculatePlan(eventId){
-  const ev = State.events.find(e => e.id === eventId);
-  if (!ev) return null;
+  const ev = normalizeEvent(State.events.find(e => e.id === eventId) || {});
+  if (!ev?.id) return null;
 
   const cocktailsMap = new Map(State.cocktails.map(c => [c.id, c]));
   const bottleSizes = State.bottleSizes;
@@ -516,13 +562,7 @@ function calculatePlan(eventId){
       const withWaste = ml * wasteFactor;
       const bottleSize = Number(bottleSizes[ingredient]) || 750;
       const bottles = Math.ceil(withWaste / bottleSize);
-      return {
-        ingredient,
-        ml: Math.round(ml),
-        withWaste: Math.round(withWaste),
-        bottleSize,
-        bottles
-      };
+      return { ingredient, ml: Math.round(ml), withWaste: Math.round(withWaste), bottleSize, bottles };
     })
     .sort((a,b) => b.withWaste - a.withWaste);
 
@@ -554,7 +594,7 @@ function renderPlannerSelect(){
 
   sel.innerHTML = "";
 
-  const events = State.events;
+  const events = State.events.map(normalizeEvent);
   if (events.length === 0){
     const opt = document.createElement("option");
     opt.value = "";
@@ -643,7 +683,7 @@ function renderFeedback(){
 
   sel.innerHTML = "";
 
-  const events = State.events;
+  const events = State.events.map(normalizeEvent);
   if (events.length === 0){
     const opt = document.createElement("option");
     opt.value = "";
@@ -709,9 +749,9 @@ on("#btnLoadFeedback", "click", () => {
 });
 
 on("#btnClearFeedbackForm", "click", () => {
-  if ($("#fbClientName")) $("#fbClientName").value = "";
-  if ($("#fbRating")) $("#fbRating").value = 5;
-  if ($("#fbComment")) $("#fbComment").value = "";
+  $("#fbClientName").value = "";
+  $("#fbRating").value = 5;
+  $("#fbComment").value = "";
 });
 
 on("#feedbackForm", "submit", (e) => {
@@ -739,33 +779,351 @@ on("#feedbackForm", "submit", (e) => {
 
   State.feedbacks = feedbacks;
 
-  if ($("#fbClientName")) $("#fbClientName").value = "";
-  if ($("#fbRating")) $("#fbRating").value = 5;
-  if ($("#fbComment")) $("#fbComment").value = "";
+  $("#fbClientName").value = "";
+  $("#fbRating").value = 5;
+  $("#fbComment").value = "";
 
   renderFeedbackTable(eventId);
 });
 
-// ---------- Wire nav ----------
-function wireNav(){
-  const navButtons = $$(".nav-btn");
-  console.log("🧭 nav-btn encontrados:", navButtons.length);
+// ---------- Calendar ----------
+let calCursor = new Date(); // mes actual visible
+let calSelected = isoToday();
 
-  navButtons.forEach(btn => {
+function getEventsByDate(dateStr){
+  return State.events.map(normalizeEvent).filter(e => e.date === dateStr);
+}
+
+function renderCalendar(){
+  // label
+  const label = calCursor.toLocaleDateString("es-ES", { month:"long", year:"numeric" });
+  $("#calMonthLabel").textContent = label;
+
+  const grid = $("#calendarGrid");
+  if (!grid) return;
+
+  const year = calCursor.getFullYear();
+  const month = calCursor.getMonth();
+
+  const first = new Date(year, month, 1);
+  const startDay = (first.getDay() + 6) % 7; // lunes=0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const events = State.events.map(normalizeEvent);
+  const eventDates = new Set(events.map(e => e.date));
+
+  const weekday = ["L","M","X","J","V","S","D"];
+
+  grid.innerHTML = "";
+  // header
+  const header = document.createElement("div");
+  header.className = "cal-row cal-head";
+  header.innerHTML = weekday.map(d => `<div class="cal-cell cal-week">${d}</div>`).join("");
+  grid.appendChild(header);
+
+  let day = 1;
+  for (let r=0; r<6; r++){
+    const row = document.createElement("div");
+    row.className = "cal-row";
+    for (let c=0; c<7; c++){
+      const cell = document.createElement("div");
+      cell.className = "cal-cell";
+      const idx = r*7 + c;
+
+      if (idx < startDay || day > daysInMonth){
+        cell.classList.add("cal-empty");
+        cell.innerHTML = `<div class="cal-num muted"> </div>`;
+      } else {
+        const dateStr = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+        const hasEvents = eventDates.has(dateStr);
+        const isSel = dateStr === calSelected;
+
+        cell.classList.toggle("cal-selected", isSel);
+        cell.innerHTML = `
+          <div class="cal-num">${day}</div>
+          ${hasEvents ? `<div class="cal-dot"></div>` : ``}
+        `;
+
+        cell.addEventListener("click", () => {
+          calSelected = dateStr;
+          renderCalendar();
+        });
+
+        day++;
+      }
+
+      row.appendChild(cell);
+    }
+    grid.appendChild(row);
+    if (day > daysInMonth) break;
+  }
+
+  // right side: selected day events + month summary
+  $("#calSelectedLabel").textContent = `Eventos del día: ${calSelected}`;
+  renderCalDayTable(calSelected);
+  renderCalMonthSummary(year, month);
+}
+
+function renderCalDayTable(dateStr){
+  const tbody = $("#calEventsTable tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const list = getEventsByDate(dateStr);
+  if (list.length === 0){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="4" class="muted">No hay eventos en esta fecha.</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  for (const ev of list){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><b>${ev.name}</b></td>
+      <td>${ev.clientName ? `<b>${ev.clientName}</b>` : `<span class="muted">—</span>`}</td>
+      <td><span class="badge">${ev.eventType || "Otro"}</span></td>
+      <td class="right"><button class="ghost" data-go="${ev.id}">Ir</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  tbody.querySelectorAll("[data-go]").forEach(btn => {
     btn.addEventListener("click", () => {
-      console.log("➡️ Click en:", btn.dataset.view);
-      showView(btn.dataset.view);
+      const id = btn.dataset.go;
+      State.selectedEventId = id;
+      showView("events");
+      renderEvents();
+      // (opcional) también podrías ir a planner directo:
+      // showView("planner");
     });
   });
 }
 
+function renderCalMonthSummary(year, month){
+  const tbody = $("#calMonthSummary tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const mStr = String(month+1).padStart(2,"0");
+  const key = `${year}-${mStr}`;
+
+  const list = State.events.map(normalizeEvent)
+    .filter(e => monthKey(e.date) === key)
+    .sort((a,b) => (a.date||"").localeCompare(b.date||""));
+
+  if (list.length === 0){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="4" class="muted">No hay eventos en este mes.</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  for (const ev of list){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="muted">${ev.date}</td>
+      <td>${ev.clientName ? `<b>${ev.clientName}</b>` : `<span class="muted">—</span>`}</td>
+      <td><b>${ev.name}</b></td>
+      <td><span class="badge">${ev.eventType || "Otro"}</span></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+on("#btnCalPrev", "click", () => { calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()-1, 1); renderCalendar(); });
+on("#btnCalNext", "click", () => { calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()+1, 1); renderCalendar(); });
+on("#btnCalToday", "click", () => { calCursor = new Date(); calSelected = isoToday(); renderCalendar(); });
+
+// ---------- Movements / Stats ----------
+function renderMovements(){
+  const now = new Date();
+  const year = now.getFullYear();
+  const thisKey = `${year}-${String(now.getMonth()+1).padStart(2,"0")}`;
+
+  const prevDate = new Date(year, now.getMonth()-1, 1);
+  const prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,"0")}`;
+
+  const events = State.events.map(normalizeEvent);
+
+  const thisCount = events.filter(e => monthKey(e.date) === thisKey).length;
+  const prevCount = events.filter(e => monthKey(e.date) === prevKey).length;
+
+  $("#statThisMonth").textContent = fmtInt(thisCount);
+  $("#statPrevMonth").textContent = fmtInt(prevCount);
+
+  const diff = thisCount - prevCount;
+  const arrow = diff > 0 ? "⬆" : diff < 0 ? "⬇" : "→";
+  $("#statChange").textContent = `${arrow} ${diff}`;
+
+  // table by month (año actual)
+  const months = Array.from({length:12}, (_,i)=>`${year}-${String(i+1).padStart(2,"0")}`);
+  const counts = months.map(k => ({
+    key: k,
+    count: events.filter(e => monthKey(e.date) === k).length
+  }));
+
+  const best = counts.reduce((a,b)=> b.count>a.count?b:a, {key:months[0],count:0});
+  $("#statBestMonth").textContent = monthLabelFromKey(best.key);
+  $("#statBestMonthCount").textContent = `${best.count} eventos`;
+
+  // fill stats month table
+  const tbody = $("#statsByMonthTable tbody");
+  tbody.innerHTML = "";
+  for (const m of counts){
+    const tr = document.createElement("tr");
+    const isBest = m.key === best.key && best.count > 0;
+    tr.innerHTML = `
+      <td>${isBest ? `<b>${monthLabelFromKey(m.key)}</b>` : monthLabelFromKey(m.key)}</td>
+      <td class="right">${fmtInt(m.count)}</td>
+      <td class="right"><span class="badge">${rangeLabel(m.count)}</span></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // month selector
+  const sel = $("#statsMonthSelect");
+  sel.innerHTML = "";
+  for (const m of months){
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = monthLabelFromKey(m);
+    sel.appendChild(opt);
+  }
+  sel.value = thisKey;
+  renderMonthEventsTable(thisKey);
+
+  sel.onchange = () => renderMonthEventsTable(sel.value);
+}
+
+function renderMonthEventsTable(key){
+  const tbody = $("#statsMonthEventsTable tbody");
+  tbody.innerHTML = "";
+
+  const list = State.events.map(normalizeEvent)
+    .filter(e => monthKey(e.date) === key)
+    .sort((a,b) => (a.date||"").localeCompare(b.date||""));
+
+  if (list.length === 0){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="4" class="muted">No hay eventos en este mes.</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  for (const ev of list){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="muted">${ev.date}</td>
+      <td>${ev.clientName ? `<b>${ev.clientName}</b>` : `<span class="muted">—</span>`}</td>
+      <td><b>${ev.name}</b></td>
+      <td><span class="badge">${ev.eventType || "Otro"}</span></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+on("#btnRefreshStats", "click", () => renderMovements());
+
+// ---------- Sidebar toggle ----------
+(function setupSidebarToggle(){
+  const btn = document.getElementById("btnToggleSidebar");
+  const overlay = document.getElementById("sidebarOverlay");
+  if (!btn) return;
+
+  function isMobile(){
+    return window.matchMedia("(max-width: 720px)").matches;
+  }
+  function openMobileSidebar(){
+    document.body.classList.add("sidebar-open");
+    overlay?.classList.remove("hidden");
+  }
+  function closeMobileSidebar(){
+    document.body.classList.remove("sidebar-open");
+    overlay?.classList.add("hidden");
+  }
+
+  btn.addEventListener("click", () => {
+    if (isMobile()){
+      if (document.body.classList.contains("sidebar-open")) closeMobileSidebar();
+      else openMobileSidebar();
+    } else {
+      document.body.classList.toggle("sidebar-hidden");
+    }
+  });
+
+  overlay?.addEventListener("click", closeMobileSidebar);
+
+  window.addEventListener("resize", () => {
+    if (!isMobile()) closeMobileSidebar();
+    else {
+      document.body.classList.remove("sidebar-hidden");
+      closeMobileSidebar();
+    }
+  });
+
+  if (isMobile()) closeMobileSidebar();
+})();
+
+// ---------- Wire nav ----------
+function wireNav(){
+  const navButtons = $$(".nav-btn");
+  navButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      showView(btn.dataset.view);
+
+      if (window.matchMedia("(max-width: 720px)").matches) {
+        document.body.classList.remove("sidebar-open");
+        document.getElementById("sidebarOverlay")?.classList.add("hidden");
+      }
+    });
+  });
+}
+
+// ---------- Login + Logout ----------
+on("#loginForm","submit",(e)=>{
+  e.preventDefault();
+  const u = $("#loginUser").value.trim();
+  const p = $("#loginPass").value.trim();
+  const ok = (u === ADMIN_USER && p === ADMIN_PASS);
+
+  const err = $("#loginError");
+  if (!ok){
+    err.style.display = "block";
+    return;
+  }
+  err.style.display = "none";
+  setAuthed(true);
+  showApp();
+  bootApp();
+});
+
+on("#btnLogout","click",()=>{
+  setAuthed(false);
+  sessionStorage.removeItem(AUTH_KEY);
+  showLogin();
+});
+
 // ---------- Boot ----------
-wireNav();
-showView("dashboard");
-renderCocktails();
-renderEvents();
-renderPlannerSelect();
-renderFeedback();
-renderDashboard();
+function bootApp(){
+  wireNav();
+  showView("dashboard");
+  renderCocktails();
+  renderEvents();
+  renderPlannerSelect();
+  renderFeedback();
+  renderCalendar();
+  renderMovements();
+  renderDashboard();
+}
 
-
+// Init:
+(function init(){
+  // si ya está logueado
+  if (isAuthed()){
+    showApp();
+    bootApp();
+  } else {
+    showLogin();
+  }
+})();

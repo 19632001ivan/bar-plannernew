@@ -8,8 +8,38 @@
 </head>
 
 <body>
-  <div class="app">
-    <aside class="sidebar">
+
+  <!-- ✅ LOGIN SCREEN -->
+  <section id="loginScreen" class="login-screen hidden">
+    <div class="login-card">
+      <div class="login-brand">
+        <img class="login-logo" src="./assets/css/img/Logo_principal.png" alt="Logo Bar Planner" />
+        <div>
+          <div class="login-title">Bar Planner</div>
+          <div class="muted">Iniciar sesión</div>
+           <div class="muted">Pagina creada por Ivan Rojas</div>
+        </div>
+      </div>
+
+      <form id="loginForm" class="login-form">
+        <div class="form-row">
+          <label>Usuario</label>
+          <input id="loginUser" type="text" placeholder="admin" autocomplete="username" required />
+        </div>
+        <div class="form-row">
+          <label>Contraseña</label>
+          <input id="loginPass" type="password" placeholder="12345" autocomplete="current-password" required />
+        </div>
+
+        <button class="primary full" type="submit">Entrar</button>
+        <p class="muted small" id="loginError" style="display:none;">Usuario o contraseña incorrectos.</p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ✅ APP SHELL -->
+  <div class="app hidden" id="appShell">
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="logo">
           <img src="./assets/css/img/Logo_principal.png" alt="Logo Bar Planner" />
@@ -26,21 +56,30 @@
         <button class="nav-btn" data-view="events">Eventos</button>
         <button class="nav-btn" data-view="planner">Plan del evento</button>
         <button class="nav-btn" data-view="feedback">Opiniones</button>
+
+        <!-- ✅ NUEVOS -->
+        <button class="nav-btn" data-view="calendar">Calendario</button>
+        <button class="nav-btn" data-view="movements">Movimientos</button>
+
         <button class="nav-btn" data-view="personales">Personales</button>
       </nav>
 
       <div class="sidebar-footer">
+        <button class="ghost" id="btnLogout">Cerrar sesión</button>
         <button class="ghost" id="btnResetDemo">Reiniciar demo</button>
-        <small class="muted">v0.1 (prototipo)</small>
+        <small class="muted">v0.2 (prototipo)</small>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
+        <button class="icon" id="btnToggleSidebar" aria-label="Abrir/cerrar menú">☰</button>
+
         <div>
           <h1 id="viewTitle">Panel Principal</h1>
           <p class="muted" id="viewDesc">Resumen rápido de tu barra.</p>
         </div>
+
         <div class="topbar-actions">
           <button class="primary" id="btnQuickNewEvent">+ Nuevo evento</button>
         </div>
@@ -72,7 +111,8 @@
             <li>Ve a <b>Tragos</b> y crea/edita recetas.</li>
             <li>Ve a <b>Eventos</b> y crea un evento con su menú.</li>
             <li>Ve a <b>Plan del evento</b> para generar insumos y herramientas.</li>
-            <li>Ve a <b>Opiniones</b> para guardar feedback del cliente.</li>
+            <li>Ve a <b>Calendario</b> para ver eventos por fecha.</li>
+            <li>Ve a <b>Movimientos</b> para ver estadísticas por mes.</li>
           </ol>
         </div>
       </section>
@@ -129,6 +169,8 @@
                   <tr>
                     <th>Evento</th>
                     <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Tipo</th>
                     <th>Modo</th>
                     <th>Estado</th>
                     <th class="right">Tragos</th>
@@ -139,7 +181,7 @@
               </table>
             </div>
 
-            <p class="muted small">Ahora puedes marcar eventos como terminados y eliminarlos desde la tabla.</p>
+            <p class="muted small">Puedes terminar/reabrir y eliminar eventos desde la tabla.</p>
           </div>
         </div>
       </section>
@@ -250,6 +292,138 @@
         </div>
       </section>
 
+      <!-- ✅ CALENDARIO -->
+      <section class="view hidden" id="view-calendar">
+        <div class="card">
+          <div class="card-head">
+            <h3>Calendario</h3>
+            <div class="inline">
+              <button class="ghost" id="btnCalPrev">◀</button>
+              <div class="badge" id="calMonthLabel">Mes</div>
+              <button class="ghost" id="btnCalNext">▶</button>
+              <button class="primary" id="btnCalToday">Hoy</button>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="panel">
+              <div class="calendar-grid" id="calendarGrid"></div>
+              <p class="muted small">Las fechas con punto tienen eventos. Toca una fecha para verlos.</p>
+            </div>
+
+            <div class="panel">
+              <h4 id="calSelectedLabel">Eventos del día</h4>
+              <div class="table-wrap">
+                <table class="table" id="calEventsTable">
+                  <thead>
+                    <tr>
+                      <th>Evento</th>
+                      <th>Cliente</th>
+                      <th>Tipo</th>
+                      <th class="right">Ir</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+
+              <div class="divider"></div>
+
+              <h4>Resumen del mes</h4>
+              <div class="table-wrap">
+                <table class="table" id="calMonthSummary">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Cliente</th>
+                      <th>Evento</th>
+                      <th>Tipo</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ✅ MOVIMIENTOS -->
+      <section class="view hidden" id="view-movements">
+        <div class="card">
+          <div class="card-head">
+            <h3>Movimientos</h3>
+            <div class="inline">
+              <button class="ghost" id="btnRefreshStats">Actualizar</button>
+            </div>
+          </div>
+
+          <div class="grid grid-4">
+            <div class="card">
+              <h3>Este mes</h3>
+              <p class="big" id="statThisMonth">0</p>
+              <p class="muted">eventos</p>
+            </div>
+            <div class="card">
+              <h3>Mes anterior</h3>
+              <p class="big" id="statPrevMonth">0</p>
+              <p class="muted">eventos</p>
+            </div>
+            <div class="card">
+              <h3>Sube / baja</h3>
+              <p class="big" id="statChange">—</p>
+              <p class="muted">comparación mensual</p>
+            </div>
+            <div class="card">
+              <h3>Mes con más eventos</h3>
+              <p class="big" id="statBestMonth">—</p>
+              <p class="muted" id="statBestMonthCount">0 eventos</p>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="panel">
+              <h4>Rangos por mes (año actual)</h4>
+              <div class="table-wrap">
+                <table class="table" id="statsByMonthTable">
+                  <thead>
+                    <tr>
+                      <th>Mes</th>
+                      <th class="right">Eventos</th>
+                      <th class="right">Rango</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <p class="muted small">Rango = Bajo (0-1), Medio (2-4), Alto (5+).</p>
+            </div>
+
+            <div class="panel">
+              <h4>Eventos del mes seleccionado</h4>
+              <div class="inline">
+                <select id="statsMonthSelect"></select>
+              </div>
+
+              <div class="table-wrap">
+                <table class="table" id="statsMonthEventsTable">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Cliente</th>
+                      <th>Evento</th>
+                      <th>Tipo</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       <!-- PERSONALES -->
       <section class="view hidden" id="view-personales">
         <div class="card">
@@ -264,11 +438,6 @@
             <p class="muted">
               Acá vamos a gestionar el personal del evento (bartenders, barback, supervisor), roles y checklist por persona.
             </p>
-            <ul class="muted">
-              <li>Crear personal (nombre, rol, contacto)</li>
-              <li>Asignar personal a un evento</li>
-              <li>Checklist por persona</li>
-            </ul>
           </div>
         </div>
       </section>
@@ -326,6 +495,22 @@
             </div>
 
             <div class="form-row">
+              <label>Cliente</label>
+              <input type="text" id="eventClient" placeholder="Ej: Ana" />
+            </div>
+
+            <div class="form-row">
+              <label>Tipo de evento</label>
+              <select id="eventType">
+                <option value="Cumpleaños">Cumpleaños</option>
+                <option value="Boda">Boda</option>
+                <option value="Corporativo">Corporativo</option>
+                <option value="15 años">15 años</option>
+                <option value="Otro" selected>Otro</option>
+              </select>
+            </div>
+
+            <div class="form-row">
               <label>Fecha</label>
               <input type="date" id="eventDate" required />
             </div>
@@ -368,7 +553,9 @@
     </main>
   </div>
 
-  <!-- OJO: tus JS reales están en assets/css/js -->
+  <div id="sidebarOverlay" class="sidebar-overlay hidden"></div>
+
+  <!-- JS -->
   <script src="./assets/css/js/storage.js"></script>
   <script src="./assets/css/js/seed.js"></script>
   <script src="./assets/css/js/app.js"></script>
