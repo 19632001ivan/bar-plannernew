@@ -6,10 +6,7 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
 function on(sel, evt, handler) {
   const el = $(sel);
-  if (!el) {
-    console.warn(`⚠️ No existe el elemento: ${sel}`);
-    return;
-  }
+  if (!el) return;
   el.addEventListener(evt, handler);
 }
 
@@ -37,8 +34,12 @@ function isoToday(){
   return new Date().toISOString().slice(0,10);
 }
 
+function uuid(){
+  if (window.crypto?.randomUUID) return crypto.randomUUID();
+  return "id-" + Math.random().toString(16).slice(2) + "-" + Date.now();
+}
+
 function monthKey(dateStr){
-  // dateStr YYYY-MM-DD
   return (dateStr || "").slice(0,7); // YYYY-MM
 }
 
@@ -62,16 +63,13 @@ const ADMIN_PASS = "12345";
 function isAuthed(){
   return sessionStorage.getItem(AUTH_KEY) === "1";
 }
-
 function setAuthed(v){
   sessionStorage.setItem(AUTH_KEY, v ? "1" : "0");
 }
-
 function showLogin(){
   $("#loginScreen")?.classList.remove("hidden");
   $("#appShell")?.classList.add("hidden");
 }
-
 function showApp(){
   $("#loginScreen")?.classList.add("hidden");
   $("#appShell")?.classList.remove("hidden");
@@ -117,7 +115,6 @@ function showView(name){
   }
 
   $$(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.view === name));
-
   $("#viewTitle").textContent = viewMeta[name].title;
   $("#viewDesc").textContent = viewMeta[name].desc;
 
@@ -134,7 +131,6 @@ function showView(name){
 function renderDashboard(){
   $("#statCocktails").textContent = fmtInt(State.cocktails.length);
   $("#statEvents").textContent = fmtInt(State.events.length);
-
   const sel = State.events.find(e => e.id === State.selectedEventId);
   $("#statLastPlan").textContent = sel ? sel.name : "—";
 }
@@ -174,8 +170,7 @@ function openCocktailModal(id=null){
   const c = isEdit ? State.cocktails.find(x => x.id === id) : null;
 
   $("#cocktailModalTitle").textContent = isEdit ? "Editar trago" : "Nuevo trago";
-  const delBtn = $("#btnDeleteCocktail");
-  delBtn.style.visibility = isEdit ? "visible" : "hidden";
+  $("#btnDeleteCocktail").style.visibility = isEdit ? "visible" : "hidden";
 
   $("#cocktailName").value = c?.name ?? "";
   $("#cocktailMethod").value = c?.method ?? "build";
@@ -220,7 +215,7 @@ on("#cocktailForm", "submit", (e) => {
     const idx = cocktails.findIndex(x => x.id === editingCocktailId);
     if (idx >= 0) cocktails[idx] = { ...cocktails[idx], name, method, recipe };
   } else {
-    cocktails.unshift({ id: crypto.randomUUID(), name, method, recipe });
+    cocktails.unshift({ id: uuid(), name, method, recipe });
   }
 
   State.cocktails = cocktails;
@@ -261,108 +256,6 @@ function normalizeEvent(ev){
     createdAt: ev.createdAt ?? new Date().toISOString(),
     ...ev,
   };
-}
-
-function renderEvents(){
-  const tbody = $("#eventsTable tbody");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  const filter = $("#eventsFilter")?.value ?? "all";
-  let list = State.events.map(normalizeEvent);
-
-  if (filter === "active"){
-    list = list.filter(ev => (ev.status ?? "active") !== "completed");
-  } else if (filter === "completed"){
-    list = list.filter(ev => (ev.status ?? "active") === "completed");
-  }
-
-  for (const ev of list){
-    const status = ev.status ?? "active";
-    const statusLabel = status === "completed" ? "Terminado" : "Activo";
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><b>${ev.name}</b></td>
-      <td class="muted">${ev.date}</td>
-      <td>${ev.clientName ? `<b>${ev.clientName}</b>` : `<span class="muted">—</span>`}</td>
-      <td><span class="badge">${ev.eventType || "Otro"}</span></td>
-      <td><span class="badge">${ev.mode}</span></td>
-      <td><span class="badge">${statusLabel}</span></td>
-      <td class="right">${fmtInt(ev.totalDrinks)}</td>
-      <td class="right">
-        <div class="actions-cell">
-          <button class="ghost" data-select="${ev.id}">Seleccionar</button>
-          <button class="ghost" data-edit="${ev.id}">Editar</button>
-          <button class="ghost" data-toggle="${ev.id}">${status === "completed" ? "Reabrir" : "Terminar"}</button>
-          <button class="ghost danger" data-del="${ev.id}">Eliminar</button>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  }
-
-  tbody.querySelectorAll("[data-edit]").forEach(btn => {
-    btn.addEventListener("click", () => openEventModal(btn.dataset.edit));
-  });
-
-  tbody.querySelectorAll("[data-select]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      State.selectedEventId = btn.dataset.select;
-      alert("Evento seleccionado para el plan.");
-      renderDashboard();
-      renderPlannerSelect();
-      renderFeedback();
-      renderCalendar();
-      renderMovements();
-    });
-  });
-
-  tbody.querySelectorAll("[data-toggle]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.toggle;
-      const events = State.events.slice();
-      const idx = events.findIndex(e => e.id === id);
-      if (idx < 0) return;
-
-      const current = events[idx].status ?? "active";
-      events[idx].status = (current === "completed") ? "active" : "completed";
-
-      State.events = events;
-      renderEvents();
-      renderDashboard();
-      renderPlannerSelect();
-      renderFeedback();
-      renderCalendar();
-      renderMovements();
-    });
-  });
-
-  tbody.querySelectorAll("[data-del]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.del;
-      const ev = State.events.find(e => e.id === id);
-      if (!ev) return;
-
-      if (!confirm(`¿Eliminar el evento "${ev.name}"? Esto no se puede deshacer.`)) return;
-
-      const events = State.events.filter(e => e.id !== id);
-      State.events = events;
-
-      State.feedbacks = State.feedbacks.filter(fb => fb.eventId !== id);
-
-      if (State.selectedEventId === id){
-        State.selectedEventId = events[0]?.id ?? null;
-      }
-
-      renderEvents();
-      renderDashboard();
-      renderPlannerSelect();
-      renderFeedback();
-      renderCalendar();
-      renderMovements();
-    });
-  });
 }
 
 function makeMenuRow(menuItem){
@@ -431,6 +324,154 @@ function closeEventModal(){
   editingEventId = null;
 }
 
+function renderEventsCards(list){
+  const box = document.getElementById("eventsCards");
+  if (!box) return;
+  box.innerHTML = "";
+
+  if (list.length === 0){
+    box.innerHTML = `<div class="event-card muted">No hay eventos para mostrar.</div>`;
+    return;
+  }
+
+  for (const ev of list){
+    const status = (ev.status ?? "active");
+    const statusLabel = status === "completed" ? "Terminado" : "Activo";
+
+    const div = document.createElement("div");
+    div.className = "event-card";
+    div.innerHTML = `
+      <h4>${ev.name}</h4>
+      <div class="event-meta muted">
+        <div><b>Fecha:</b> ${ev.date}</div>
+        <div><b>Cliente:</b> ${ev.clientName || "—"}</div>
+        <div><b>Tipo:</b> ${ev.eventType || "Otro"}</div>
+        <div><b>Estado:</b> ${statusLabel}</div>
+        <div><b>Tragos:</b> ${ev.totalDrinks}</div>
+      </div>
+      <div class="event-actions">
+        <button class="ghost" data-select="${ev.id}">Seleccionar</button>
+        <button class="ghost" data-edit="${ev.id}">Editar</button>
+        <button class="ghost" data-toggle="${ev.id}">${status === "completed" ? "Reabrir" : "Terminar"}</button>
+        <button class="ghost danger" data-del="${ev.id}">Eliminar</button>
+      </div>
+    `;
+    box.appendChild(div);
+  }
+
+  // listeners cards (mismo comportamiento que tabla)
+  box.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => openEventModal(btn.dataset.edit)));
+
+  box.querySelectorAll("[data-select]").forEach(btn => btn.addEventListener("click", () => {
+    State.selectedEventId = btn.dataset.select;
+    alert("Evento seleccionado para el plan.");
+    renderDashboard(); renderPlannerSelect(); renderFeedback(); renderCalendar(); renderMovements();
+  }));
+
+  box.querySelectorAll("[data-toggle]").forEach(btn => btn.addEventListener("click", () => {
+    const id = btn.dataset.toggle;
+    const events = State.events.slice();
+    const idx = events.findIndex(e => e.id === id);
+    if (idx < 0) return;
+    const current = events[idx].status ?? "active";
+    events[idx].status = (current === "completed") ? "active" : "completed";
+    State.events = events;
+    renderEvents();
+  }));
+
+  box.querySelectorAll("[data-del]").forEach(btn => btn.addEventListener("click", () => {
+    const id = btn.dataset.del;
+    const ev = State.events.find(e => e.id === id);
+    if (!ev) return;
+    if (!confirm(`¿Eliminar el evento "${ev.name}"?`)) return;
+
+    State.events = State.events.filter(e => e.id !== id);
+    State.feedbacks = State.feedbacks.filter(fb => fb.eventId !== id);
+    if (State.selectedEventId === id) State.selectedEventId = State.events[0]?.id ?? null;
+    renderEvents();
+    renderDashboard(); renderPlannerSelect(); renderFeedback(); renderCalendar(); renderMovements();
+  }));
+}
+
+function renderEvents(){
+  const tbody = $("#eventsTable tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const filter = $("#eventsFilter")?.value ?? "all";
+  let list = State.events.map(normalizeEvent);
+
+  if (filter === "active") list = list.filter(ev => (ev.status ?? "active") !== "completed");
+  if (filter === "completed") list = list.filter(ev => (ev.status ?? "active") === "completed");
+
+  // render tabla (PC)
+  for (const ev of list){
+    const status = ev.status ?? "active";
+    const statusLabel = status === "completed" ? "Terminado" : "Activo";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><b>${ev.name}</b></td>
+      <td class="muted">${ev.date}</td>
+      <td>${ev.clientName ? `<b>${ev.clientName}</b>` : `<span class="muted">—</span>`}</td>
+      <td><span class="badge">${ev.eventType || "Otro"}</span></td>
+      <td><span class="badge">${ev.mode}</span></td>
+      <td><span class="badge">${statusLabel}</span></td>
+      <td class="right">${fmtInt(ev.totalDrinks)}</td>
+      <td class="right">
+        <div class="actions-cell">
+          <button class="ghost" data-select="${ev.id}">Seleccionar</button>
+          <button class="ghost" data-edit="${ev.id}">Editar</button>
+          <button class="ghost" data-toggle="${ev.id}">${status === "completed" ? "Reabrir" : "Terminar"}</button>
+          <button class="ghost danger" data-del="${ev.id}">Eliminar</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // listeners tabla
+  tbody.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => openEventModal(btn.dataset.edit)));
+
+  tbody.querySelectorAll("[data-select]").forEach(btn => btn.addEventListener("click", () => {
+    State.selectedEventId = btn.dataset.select;
+    alert("Evento seleccionado para el plan.");
+    renderDashboard(); renderPlannerSelect(); renderFeedback(); renderCalendar(); renderMovements();
+  }));
+
+  tbody.querySelectorAll("[data-toggle]").forEach(btn => btn.addEventListener("click", () => {
+    const id = btn.dataset.toggle;
+    const events = State.events.slice();
+    const idx = events.findIndex(e => e.id === id);
+    if (idx < 0) return;
+    const current = events[idx].status ?? "active";
+    events[idx].status = (current === "completed") ? "active" : "completed";
+    State.events = events;
+    renderEvents();
+    renderDashboard(); renderPlannerSelect(); renderFeedback(); renderCalendar(); renderMovements();
+  }));
+
+  tbody.querySelectorAll("[data-del]").forEach(btn => btn.addEventListener("click", () => {
+    const id = btn.dataset.del;
+    const ev = State.events.find(e => e.id === id);
+    if (!ev) return;
+    if (!confirm(`¿Eliminar el evento "${ev.name}"? Esto no se puede deshacer.`)) return;
+
+    const events = State.events.filter(e => e.id !== id);
+    State.events = events;
+
+    State.feedbacks = State.feedbacks.filter(fb => fb.eventId !== id);
+
+    if (State.selectedEventId === id) State.selectedEventId = events[0]?.id ?? null;
+
+    renderEvents();
+    renderDashboard(); renderPlannerSelect(); renderFeedback(); renderCalendar(); renderMovements();
+  }));
+
+  // render cards (móvil)
+  renderEventsCards(list);
+}
+
 on("#btnNewEvent", "click", () => openEventModal());
 on("#btnQuickNewEvent", "click", () => { showView("events"); openEventModal(); });
 on("#btnCloseEventModal", "click", closeEventModal);
@@ -456,6 +497,7 @@ on("#eventForm", "submit", (e) => {
   if (!name) return alert("Pon nombre del evento.");
   if (!date) return alert("Pon fecha.");
   if (!Number.isFinite(totalDrinks) || totalDrinks <= 0) return alert("Total de tragos inválido.");
+  if (State.cocktails.length === 0) return alert("Primero crea tragos para armar el menú.");
 
   const rows = Array.from($("#eventMenuRows")?.querySelectorAll(".menu-row") ?? []);
   const menu = rows.map(r => ({
@@ -471,14 +513,14 @@ on("#eventForm", "submit", (e) => {
 
   if (editingEventId){
     const idx = events.findIndex(x => x.id === editingEventId);
-    if (idx >= 0) {
+    if (idx >= 0){
       events[idx] = {
         ...normalizeEvent(events[idx]),
-        name, clientName, eventType, date, mode, totalDrinks, wastePercent, menu,
+        name, clientName, eventType, date, mode, totalDrinks, wastePercent, menu
       };
     }
   } else {
-    const id = crypto.randomUUID();
+    const id = uuid();
     events.unshift({
       id,
       name,
@@ -496,13 +538,10 @@ on("#eventForm", "submit", (e) => {
   }
 
   State.events = events;
+
   closeEventModal();
   renderEvents();
-  renderDashboard();
-  renderPlannerSelect();
-  renderFeedback();
-  renderCalendar();
-  renderMovements();
+  renderDashboard(); renderPlannerSelect(); renderFeedback(); renderCalendar(); renderMovements();
 });
 
 on("#btnDeleteEvent", "click", () => {
@@ -510,23 +549,13 @@ on("#btnDeleteEvent", "click", () => {
   if (!confirm("¿Eliminar este evento?")) return;
 
   const id = editingEventId;
-
-  const events = State.events.filter(ev => ev.id !== id);
-  State.events = events;
-
+  State.events = State.events.filter(ev => ev.id !== id);
   State.feedbacks = State.feedbacks.filter(fb => fb.eventId !== id);
-
-  if (State.selectedEventId === id){
-    State.selectedEventId = events[0]?.id ?? null;
-  }
+  if (State.selectedEventId === id) State.selectedEventId = State.events[0]?.id ?? null;
 
   closeEventModal();
   renderEvents();
-  renderDashboard();
-  renderPlannerSelect();
-  renderFeedback();
-  renderCalendar();
-  renderMovements();
+  renderDashboard(); renderPlannerSelect(); renderFeedback(); renderCalendar(); renderMovements();
 });
 
 on("#eventsFilter", "change", () => renderEvents());
@@ -593,8 +622,8 @@ function renderPlannerSelect(){
   if (!sel) return;
 
   sel.innerHTML = "";
-
   const events = State.events.map(normalizeEvent);
+
   if (events.length === 0){
     const opt = document.createElement("option");
     opt.value = "";
@@ -647,8 +676,8 @@ function renderPlanTables(plan){
 on("#btnGeneratePlan", "click", () => {
   const eventId = $("#plannerEventSelect")?.value;
   if (!eventId) return alert("Selecciona un evento.");
-
   State.selectedEventId = eventId;
+
   const plan = calculatePlan(eventId);
   if (!plan) return alert("No se pudo generar el plan.");
   renderPlanTables(plan);
@@ -671,7 +700,7 @@ on("#btnExportCsv", "click", () => {
 
 // ---------- Reset demo ----------
 on("#btnResetDemo", "click", () => {
-  if (!confirm("Esto borra la data demo guardada en el navegador. ¿Seguro?")) return;
+  if (!confirm("Esto borra la data guardada. ¿Seguro?")) return;
   Storage.clear();
   location.reload();
 });
@@ -682,8 +711,8 @@ function renderFeedback(){
   if (!sel) return;
 
   sel.innerHTML = "";
-
   const events = State.events.map(normalizeEvent);
+
   if (events.length === 0){
     const opt = document.createElement("option");
     opt.value = "";
@@ -715,6 +744,13 @@ function renderFeedbackTable(eventId){
     .filter(fb => fb.eventId === eventId)
     .sort((a,b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 
+  if (rows.length === 0){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="5" class="muted">No hay opiniones todavía.</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
   for (const fb of rows){
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -722,11 +758,7 @@ function renderFeedbackTable(eventId){
       <td>${fb.clientName ? `<b>${fb.clientName}</b>` : `<span class="muted">—</span>`}</td>
       <td class="right"><b>${fb.rating}</b></td>
       <td>${fb.comment}</td>
-      <td class="right">
-        <div class="actions-cell">
-          <button class="ghost danger" data-del-fb="${fb.id}">Eliminar</button>
-        </div>
-      </td>
+      <td class="right"><button class="ghost danger" data-del-fb="${fb.id}">Eliminar</button></td>
     `;
     tbody.appendChild(tr);
   }
@@ -760,23 +792,22 @@ on("#feedbackForm", "submit", (e) => {
   const eventId = $("#feedbackEventSelect")?.value || State.selectedEventId;
   if (!eventId) return alert("Selecciona un evento.");
 
-  const clientName = $("#fbClientName")?.value?.trim() ?? "";
-  const rating = Number($("#fbRating")?.value);
-  const comment = $("#fbComment")?.value?.trim() ?? "";
+  const clientName = $("#fbClientName").value.trim();
+  const rating = Number($("#fbRating").value);
+  const comment = $("#fbComment").value.trim();
 
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) return alert("Rating inválido (1 a 5).");
   if (!comment) return alert("Escribe un comentario.");
 
   const feedbacks = State.feedbacks.slice();
   feedbacks.unshift({
-    id: crypto.randomUUID(),
+    id: uuid(),
     eventId,
     clientName,
     rating,
     comment,
     createdAt: new Date().toISOString()
   });
-
   State.feedbacks = feedbacks;
 
   $("#fbClientName").value = "";
@@ -787,7 +818,7 @@ on("#feedbackForm", "submit", (e) => {
 });
 
 // ---------- Calendar ----------
-let calCursor = new Date(); // mes actual visible
+let calCursor = new Date();
 let calSelected = isoToday();
 
 function getEventsByDate(dateStr){
@@ -795,7 +826,6 @@ function getEventsByDate(dateStr){
 }
 
 function renderCalendar(){
-  // label
   const label = calCursor.toLocaleDateString("es-ES", { month:"long", year:"numeric" });
   $("#calMonthLabel").textContent = label;
 
@@ -815,7 +845,6 @@ function renderCalendar(){
   const weekday = ["L","M","X","J","V","S","D"];
 
   grid.innerHTML = "";
-  // header
   const header = document.createElement("div");
   header.className = "cal-row cal-head";
   header.innerHTML = weekday.map(d => `<div class="cal-cell cal-week">${d}</div>`).join("");
@@ -825,6 +854,7 @@ function renderCalendar(){
   for (let r=0; r<6; r++){
     const row = document.createElement("div");
     row.className = "cal-row";
+
     for (let c=0; c<7; c++){
       const cell = document.createElement("div");
       cell.className = "cal-cell";
@@ -854,11 +884,11 @@ function renderCalendar(){
 
       row.appendChild(cell);
     }
+
     grid.appendChild(row);
     if (day > daysInMonth) break;
   }
 
-  // right side: selected day events + month summary
   $("#calSelectedLabel").textContent = `Eventos del día: ${calSelected}`;
   renderCalDayTable(calSelected);
   renderCalMonthSummary(year, month);
@@ -894,8 +924,6 @@ function renderCalDayTable(dateStr){
       State.selectedEventId = id;
       showView("events");
       renderEvents();
-      // (opcional) también podrías ir a planner directo:
-      // showView("planner");
     });
   });
 }
@@ -905,9 +933,7 @@ function renderCalMonthSummary(year, month){
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  const mStr = String(month+1).padStart(2,"0");
-  const key = `${year}-${mStr}`;
-
+  const key = `${year}-${String(month+1).padStart(2,"0")}`;
   const list = State.events.map(normalizeEvent)
     .filter(e => monthKey(e.date) === key)
     .sort((a,b) => (a.date||"").localeCompare(b.date||""));
@@ -935,7 +961,7 @@ on("#btnCalPrev", "click", () => { calCursor = new Date(calCursor.getFullYear(),
 on("#btnCalNext", "click", () => { calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()+1, 1); renderCalendar(); });
 on("#btnCalToday", "click", () => { calCursor = new Date(); calSelected = isoToday(); renderCalendar(); });
 
-// ---------- Movements / Stats ----------
+// ---------- Movements ----------
 function renderMovements(){
   const now = new Date();
   const year = now.getFullYear();
@@ -956,32 +982,28 @@ function renderMovements(){
   const arrow = diff > 0 ? "⬆" : diff < 0 ? "⬇" : "→";
   $("#statChange").textContent = `${arrow} ${diff}`;
 
-  // table by month (año actual)
   const months = Array.from({length:12}, (_,i)=>`${year}-${String(i+1).padStart(2,"0")}`);
   const counts = months.map(k => ({
     key: k,
     count: events.filter(e => monthKey(e.date) === k).length
   }));
 
-  const best = counts.reduce((a,b)=> b.count>a.count?b:a, {key:months[0],count:0});
+  const best = counts.reduce((a,b)=> (b.count>a.count ? b : a), {key: months[0], count: 0});
   $("#statBestMonth").textContent = monthLabelFromKey(best.key);
   $("#statBestMonthCount").textContent = `${best.count} eventos`;
 
-  // fill stats month table
   const tbody = $("#statsByMonthTable tbody");
   tbody.innerHTML = "";
   for (const m of counts){
     const tr = document.createElement("tr");
-    const isBest = m.key === best.key && best.count > 0;
     tr.innerHTML = `
-      <td>${isBest ? `<b>${monthLabelFromKey(m.key)}</b>` : monthLabelFromKey(m.key)}</td>
+      <td>${monthLabelFromKey(m.key)}</td>
       <td class="right">${fmtInt(m.count)}</td>
       <td class="right"><span class="badge">${rangeLabel(m.count)}</span></td>
     `;
     tbody.appendChild(tr);
   }
 
-  // month selector
   const sel = $("#statsMonthSelect");
   sel.innerHTML = "";
   for (const m of months){
@@ -1025,25 +1047,27 @@ function renderMonthEventsTable(key){
 
 on("#btnRefreshStats", "click", () => renderMovements());
 
-// ---------- Sidebar toggle ----------
+// ---------- Sidebar toggle (PC + móvil + flecha) ----------
 (function setupSidebarToggle(){
-  const btn = document.getElementById("btnToggleSidebar");
-  const overlay = document.getElementById("sidebarOverlay");
-  if (!btn) return;
+  const btnToggle = document.getElementById("btnToggleSidebar");   // ☰
+  const btnClose  = document.getElementById("btnCloseSidebar");    // ←
+  const overlay   = document.getElementById("sidebarOverlay");
 
   function isMobile(){
     return window.matchMedia("(max-width: 720px)").matches;
   }
+
   function openMobileSidebar(){
     document.body.classList.add("sidebar-open");
     overlay?.classList.remove("hidden");
   }
+
   function closeMobileSidebar(){
     document.body.classList.remove("sidebar-open");
     overlay?.classList.add("hidden");
   }
 
-  btn.addEventListener("click", () => {
+  btnToggle?.addEventListener("click", () => {
     if (isMobile()){
       if (document.body.classList.contains("sidebar-open")) closeMobileSidebar();
       else openMobileSidebar();
@@ -1052,35 +1076,39 @@ on("#btnRefreshStats", "click", () => renderMovements());
     }
   });
 
+  btnClose?.addEventListener("click", closeMobileSidebar);
   overlay?.addEventListener("click", closeMobileSidebar);
 
+  // en móvil arrancar cerrado
+  if (isMobile()) closeMobileSidebar();
+
   window.addEventListener("resize", () => {
-    if (!isMobile()) closeMobileSidebar();
-    else {
+    if (!isMobile()){
+      closeMobileSidebar();
+    } else {
       document.body.classList.remove("sidebar-hidden");
       closeMobileSidebar();
     }
   });
 
-  if (isMobile()) closeMobileSidebar();
+  window.__closeSidebarMobile = closeMobileSidebar;
 })();
 
 // ---------- Wire nav ----------
 function wireNav(){
-  const navButtons = $$(".nav-btn");
-  navButtons.forEach(btn => {
+  $$(".nav-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       showView(btn.dataset.view);
 
+      // cerrar menú automático en móvil
       if (window.matchMedia("(max-width: 720px)").matches) {
-        document.body.classList.remove("sidebar-open");
-        document.getElementById("sidebarOverlay")?.classList.add("hidden");
+        window.__closeSidebarMobile?.();
       }
     });
   });
 }
 
-// ---------- Login + Logout ----------
+// ---------- Login / Logout ----------
 on("#loginForm","submit",(e)=>{
   e.preventDefault();
   const u = $("#loginUser").value.trim();
@@ -1104,6 +1132,14 @@ on("#btnLogout","click",()=>{
   showLogin();
 });
 
+// ---------- Other quick actions ----------
+on("#btnCloseCocktailModal", "click", closeCocktailModal);
+on("#btnResetDemo", "click", () => {
+  if (!confirm("Esto borra la data guardada. ¿Seguro?")) return;
+  Storage.clear();
+  location.reload();
+});
+
 // ---------- Boot ----------
 function bootApp(){
   wireNav();
@@ -1117,9 +1153,8 @@ function bootApp(){
   renderDashboard();
 }
 
-// Init:
+// Init
 (function init(){
-  // si ya está logueado
   if (isAuthed()){
     showApp();
     bootApp();
