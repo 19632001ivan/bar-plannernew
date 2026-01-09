@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bar Planner</title>
+  <link rel="stylesheet" href="./assets/css/styles.css" />
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">
+          <img src="./assets/css/img/Logo_principal.png" alt="Logo Bar Planner" />
+        </div>
+        <div>
+          <div class="brand-title">Bar Planner</div>
+          <div class="brand-sub">Planificación de eventos</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-btn active" data-view="dashboard">Panel Principal</button>
+        <button class="nav-btn" data-view="cocktails">Tragos</button>
+        <button class="nav-btn" data-view="events">Eventos</button>
+        <button class="nav-btn" data-view="planner">Plan del evento</button>
+        <button class="nav-btn" data-view="feedback">Opiniones</button>
+        <button class="nav-btn" data-view="personales">Personales</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="ghost" id="btnResetDemo">Reiniciar demo</button>
+        <small class="muted">v0.1 (prototipo)</small>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="viewTitle">Panel Principal</h1>
+          <p class="muted" id="viewDesc">Resumen rápido de tu barra.</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="primary" id="btnQuickNewEvent">+ Nuevo evento</button>
+        </div>
+      </header>
+
+      <!-- DASHBOARD -->
+      <section class="view" id="view-dashboard">
+        <div class="grid">
+          <div class="card">
+            <h3>Tragos</h3>
+            <p class="big" id="statCocktails">0</p>
+            <p class="muted">Recetas cargadas</p>
+          </div>
+          <div class="card">
+            <h3>Eventos</h3>
+            <p class="big" id="statEvents">0</p>
+            <p class="muted">Eventos creados</p>
+          </div>
+          <div class="card">
+            <h3>Último plan</h3>
+            <p class="big" id="statLastPlan">—</p>
+            <p class="muted">Evento seleccionado</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Cómo funciona (rápido)</h3>
+          <ol class="muted">
+            <li>Ve a <b>Tragos</b> y crea/edita recetas.</li>
+            <li>Ve a <b>Eventos</b> y crea un evento con su menú.</li>
+            <li>Ve a <b>Plan del evento</b> para generar insumos y herramientas.</li>
+            <li>Ve a <b>Opiniones</b> para guardar feedback del cliente.</li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- COCKTAILS -->
+      <section class="view hidden" id="view-cocktails">
+        <div class="row">
+          <div class="card grow">
+            <div class="card-head">
+              <h3>Biblioteca de tragos</h3>
+              <button class="primary" id="btnNewCocktail">+ Nuevo trago</button>
+            </div>
+
+            <div class="table-wrap">
+              <table class="table" id="cocktailsTable">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Técnica</th>
+                    <th>Ingredientes</th>
+                    <th class="right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <p class="muted small">Tip: empieza con 5 clásicos y 2 de autor.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- EVENTS -->
+      <section class="view hidden" id="view-events">
+        <div class="row">
+          <div class="card grow">
+            <div class="card-head">
+              <h3>Eventos</h3>
+
+              <div class="inline">
+                <select id="eventsFilter">
+                  <option value="all">Todos</option>
+                  <option value="active" selected>Activos</option>
+                  <option value="completed">Terminados</option>
+                </select>
+
+                <button class="primary" id="btnNewEvent">+ Nuevo evento</button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="table" id="eventsTable">
+                <thead>
+                  <tr>
+                    <th>Evento</th>
+                    <th>Fecha</th>
+                    <th>Modo</th>
+                    <th>Estado</th>
+                    <th class="right">Tragos</th>
+                    <th class="right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <p class="muted small">Ahora puedes marcar eventos como terminados y eliminarlos desde la tabla.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- PLANNER -->
+      <section class="view hidden" id="view-planner">
+        <div class="card">
+          <div class="card-head">
+            <h3>Plan del evento</h3>
+            <div class="inline">
+              <select id="plannerEventSelect"></select>
+              <button class="primary" id="btnGeneratePlan">Generar plan</button>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="panel">
+              <h4>Insumos (estimados)</h4>
+              <div class="table-wrap">
+                <table class="table" id="planIngredientsTable">
+                  <thead>
+                    <tr>
+                      <th>Ingrediente</th>
+                      <th class="right">Total (ml)</th>
+                      <th class="right">Con merma</th>
+                      <th class="right">Botellas (aprox.)</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <p class="muted small">Botellas por defecto: 750ml si no se define otro tamaño.</p>
+            </div>
+
+            <div class="panel">
+              <h4>Herramientas sugeridas</h4>
+              <ul id="toolsList" class="checklist"></ul>
+
+              <div class="divider"></div>
+
+              <h4>Acciones</h4>
+              <div class="inline">
+                <button class="ghost" id="btnPrint">Imprimir</button>
+                <button class="ghost" id="btnExportCsv">Exportar CSV (Excel)</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FEEDBACK -->
+      <section class="view hidden" id="view-feedback">
+        <div class="card">
+          <div class="card-head">
+            <h3>Opiniones del cliente</h3>
+            <div class="inline">
+              <select id="feedbackEventSelect"></select>
+              <button class="ghost" id="btnLoadFeedback">Cargar</button>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="panel">
+              <h4>Nueva opinión</h4>
+              <form id="feedbackForm" class="form">
+                <div class="form-row">
+                  <label>Nombre (opcional)</label>
+                  <input type="text" id="fbClientName" placeholder="Ej: Ana" />
+                </div>
+
+                <div class="form-row">
+                  <label>Calificación (1 a 5)</label>
+                  <input type="number" id="fbRating" min="1" max="5" value="5" required />
+                </div>
+
+                <div class="form-row">
+                  <label>Comentario</label>
+                  <textarea id="fbComment" rows="5" placeholder="¿Qué te pareció el servicio?" required></textarea>
+                </div>
+
+                <div class="actions">
+                  <button type="button" class="ghost" id="btnClearFeedbackForm">Limpiar</button>
+                  <button type="submit" class="primary">Guardar opinión</button>
+                </div>
+              </form>
+
+              <p class="muted small">Por ahora se guarda en el navegador (localStorage).</p>
+            </div>
+
+            <div class="panel">
+              <h4>Opiniones guardadas</h4>
+              <div class="table-wrap">
+                <table class="table" id="feedbackTable">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Cliente</th>
+                      <th class="right">⭐</th>
+                      <th>Comentario</th>
+                      <th class="right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PERSONALES -->
+      <section class="view hidden" id="view-personales">
+        <div class="card">
+          <div class="card-head">
+            <h3>Personales</h3>
+            <div class="inline">
+              <span class="badge">Próximo</span>
+            </div>
+          </div>
+
+          <div class="panel">
+            <p class="muted">
+              Acá vamos a gestionar el personal del evento (bartenders, barback, supervisor), roles y checklist por persona.
+            </p>
+            <ul class="muted">
+              <li>Crear personal (nombre, rol, contacto)</li>
+              <li>Asignar personal a un evento</li>
+              <li>Checklist por persona</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- MODAL: COCKTAIL -->
+      <div class="modal hidden" id="cocktailModal">
+        <div class="modal-content">
+          <div class="modal-head">
+            <h3 id="cocktailModalTitle">Nuevo trago</h3>
+            <button class="icon" id="btnCloseCocktailModal">✕</button>
+          </div>
+
+          <form id="cocktailForm" class="form">
+            <div class="form-row">
+              <label>Nombre</label>
+              <input type="text" id="cocktailName" placeholder="Ej: Mojito" required />
+            </div>
+
+            <div class="form-row">
+              <label>Técnica</label>
+              <select id="cocktailMethod">
+                <option value="build">Build</option>
+                <option value="shake">Shake</option>
+                <option value="stir">Stir</option>
+                <option value="muddle">Muddle</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <label>Ingredientes (uno por línea: Ingrediente,ml)</label>
+              <textarea id="cocktailRecipe" rows="7" placeholder="Ron,50&#10;Jugo de limón,25&#10;Jarabe simple,20"></textarea>
+              <small class="muted">Ejemplo: “Ron,50”</small>
+            </div>
+
+            <div class="actions">
+              <button type="button" class="ghost" id="btnDeleteCocktail">Eliminar</button>
+              <button type="submit" class="primary">Guardar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- MODAL: EVENT -->
+      <div class="modal hidden" id="eventModal">
+        <div class="modal-content">
+          <div class="modal-head">
+            <h3 id="eventModalTitle">Nuevo evento</h3>
+            <button class="icon" id="btnCloseEventModal">✕</button>
+          </div>
+
+          <form id="eventForm" class="form">
+            <div class="form-row">
+              <label>Nombre del evento</label>
+              <input type="text" id="eventName" placeholder="Ej: Cumpleaños Ana" required />
+            </div>
+
+            <div class="form-row">
+              <label>Fecha</label>
+              <input type="date" id="eventDate" required />
+            </div>
+
+            <div class="form-row">
+              <label>Modo</label>
+              <select id="eventMode">
+                <option value="by_drinks">Por tragos (vasos)</option>
+                <option value="by_guests">Por invitados (próximo)</option>
+                <option value="open_bar_hours">Barra libre por horas (próximo)</option>
+              </select>
+              <small class="muted">En esta versión calculamos por tragos.</small>
+            </div>
+
+            <div class="form-row">
+              <label>Total de tragos</label>
+              <input type="number" id="eventTotalDrinks" min="1" value="100" required />
+            </div>
+
+            <div class="form-row">
+              <label>Merma (%)</label>
+              <input type="number" id="eventWaste" min="0" max="50" value="10" required />
+            </div>
+
+            <div class="form-row">
+              <label>Menú (elige tragos y %)</label>
+              <div id="eventMenuRows" class="menu-rows"></div>
+              <button type="button" class="ghost" id="btnAddMenuRow">+ Agregar trago al menú</button>
+              <small class="muted">Asegúrate que los porcentajes sumen 100%.</small>
+            </div>
+
+            <div class="actions">
+              <button type="button" class="ghost" id="btnDeleteEvent">Eliminar</button>
+              <button type="submit" class="primary">Guardar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- OJO: tus JS reales están en assets/css/js -->
+  <script src="./assets/css/js/storage.js"></script>
+  <script src="./assets/css/js/seed.js"></script>
+  <script src="./assets/css/js/app.js"></script>
+</body>
+</html>
